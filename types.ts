@@ -25,9 +25,14 @@ export interface Player {
   assists: number;
   yellowCards: number; 
   redCards: number; 
+  cupGoals: number;
+  cupAssists: number;
+  cupYellowCards: number;
+  cupRedCards: number;
   cards: number; // Matches remaining for suspension
   injuries: number; // Matches remaining for injury
   lastTransferCycle?: number;
+  transferListed?: boolean;
 }
 
 export interface Team {
@@ -55,7 +60,9 @@ export interface MarketOffer {
   fromTeamId: string;
   toTeamId: string;
   amount: number;
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXECUTED';
+  offeredPlayerId?: string;
+  counterOfId?: string;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXECUTED' | 'COUNTERED';
   timestamp: number;
 }
 
@@ -92,6 +99,11 @@ export interface Match {
   events: MatchEvent[];
   pendingReport?: MatchReport;
   isSanctionResult?: boolean; 
+  competition?: 'LEAGUE' | 'CUP' | 'PLAYOFF';
+  leg?: number;
+  tieId?: string;
+  cupRoundName?: string;
+  isBye?: boolean;
 }
 
 export interface MatchEvent {
@@ -124,5 +136,10 @@ export interface League {
   legs: 1 | 2; // Número de vueltas (1 o 2)
   startDate?: number; 
   lastMarketCloseDate?: number;
+  finalFourConfig?: {
+    direct: number[];
+    playoffs: number[];
+    locked: boolean;
+  };
   playoffs?: PlayoffBracket;
 }

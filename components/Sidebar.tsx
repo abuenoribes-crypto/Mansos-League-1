@@ -17,6 +17,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role, activeTab, setActiveTab, league
     { id: 'squad', label: 'Mi Plantilla', icon: Users },
     { id: 'market', label: 'Mercado', icon: ShoppingBag },
     { id: 'matches', label: 'Partidos', icon: Swords },
+    { id: 'cup', label: 'Copa', icon: Trophy },
     { id: 'stats', label: 'Estadísticas', icon: BarChart3 },
     { id: 'playoffs', label: 'Final Four', icon: Trophy },
   ];

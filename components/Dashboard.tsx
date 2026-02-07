@@ -139,7 +139,7 @@ const Dashboard: React.FC<DashboardProps> = ({ league, teams, matches, players, 
           <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-slate-800/20">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-500 shadow-inner"><Trophy size={24} /></div>
-              <div><h2 className="text-2xl font-black uppercase tracking-tighter">Clasificación de Ingeniería</h2><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Criterio: Puntos > H2H > GD > GF</p></div>
+              <div><h2 className="text-2xl font-black uppercase tracking-tighter">Clasificación de Ingeniería</h2><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Criterio: Puntos &gt; H2H &gt; GD &gt; GF</p></div>
             </div>
             <span className="text-xs font-black text-indigo-400 bg-indigo-400/10 border border-indigo-400/20 px-4 py-1.5 rounded-full uppercase tracking-widest">JORNADA {league.currentRound} & {league.currentRound + 1}</span>
           </div>

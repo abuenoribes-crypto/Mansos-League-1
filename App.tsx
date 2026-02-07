@@ -15,7 +15,7 @@ import Stats from './components/Stats';
 import NewsPortal from './components/NewsPortal'; 
 import NotificationPanel from './components/NotificationPanel';
 import { generateLeagueNews } from './services/geminiService';
-import { Plus, UserPlus, LogOut, Bell, Layers } from 'lucide-react';
+import { Plus, UserPlus, LogOut, Bell } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -23,6 +23,7 @@ const App: React.FC = () => {
   const [teams, setTeams] = useState<Team[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [cupMatches, setCupMatches] = useState<Match[]>([]);
   const [news, setNews] = useState<LeagueNews[]>([]);
   const [offers, setOffers] = useState<MarketOffer[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -56,6 +57,7 @@ const App: React.FC = () => {
         setPlayers(data.players || []);
         setMatches(data.matches || []);
         setNews(data.news || []);
+        setCupMatches(data.cupMatches || []);
         setOffers(data.offers || []);
         setNotifications(data.notifications || []);
         const myTeam = (data.teams || []).find((t: Team) => t.id === user.teamId);
@@ -64,7 +66,7 @@ const App: React.FC = () => {
     }
   };
 
-  const saveLeagueState = (updatedState: Partial<{ league: League, teams: Team[], players: Player[], matches: Match[], news: LeagueNews[], offers: MarketOffer[], notifications: AppNotification[] }>) => {
+  const saveLeagueState = (updatedState: Partial<{ league: League, teams: Team[], players: Player[], matches: Match[], cupMatches: Match[], news: LeagueNews[], offers: MarketOffer[], notifications: AppNotification[] }>) => {
     const leagueToSave = updatedState.league || league;
     if (!leagueToSave) return;
     const newState = {
@@ -73,6 +75,7 @@ const App: React.FC = () => {
       players: updatedState.players !== undefined ? updatedState.players : players,
       matches: updatedState.matches !== undefined ? updatedState.matches : matches,
       news: updatedState.news !== undefined ? updatedState.news : news,
+      cupMatches: updatedState.cupMatches !== undefined ? updatedState.cupMatches : cupMatches,
       offers: updatedState.offers !== undefined ? updatedState.offers : offers,
       notifications: updatedState.notifications !== undefined ? updatedState.notifications : notifications,
     };
@@ -104,6 +107,110 @@ const App: React.FC = () => {
 
     return () => clearInterval(engineInterval);
   }, [league, teams, players, matches]);
+
+  useEffect(() => {
+    if (!league?.isStarted || cupMatches.length === 0) return;
+
+    const roundOrder = ['Ronda Previa', 'Octavos', 'Cuartos', 'Semifinales', 'Final'];
+    const roundNames = Array.from(new Set(cupMatches.map(m => m.cupRoundName).filter(Boolean))) as string[];
+    const lastRoundName = roundNames.sort((a, b) => roundOrder.indexOf(b) - roundOrder.indexOf(a))[0];
+    if (!lastRoundName || lastRoundName === 'Final') return;
+
+    const roundMatches = cupMatches.filter(m => m.cupRoundName === lastRoundName);
+    if (!roundMatches.every(m => m.isPlayed)) return;
+
+    const nextRoundName = roundOrder[roundOrder.indexOf(lastRoundName) + 1];
+    if (cupMatches.some(m => m.cupRoundName === nextRoundName)) return;
+
+    const winners: string[] = [];
+    const ties = new Map<string, Match[]>();
+    roundMatches.forEach(match => {
+      if (match.isBye) {
+        winners.push(match.homeTeamId);
+        return;
+      }
+      if (!match.tieId) return;
+      if (!ties.has(match.tieId)) ties.set(match.tieId, []);
+      ties.get(match.tieId)!.push(match);
+    });
+
+    ties.forEach((tieMatches) => {
+      if (tieMatches.length < 2) return;
+      const aggregate = tieMatches.reduce((acc, m) => {
+        if (m.homeTeamId) acc[m.homeTeamId] = (acc[m.homeTeamId] || 0) + m.homeScore;
+        if (m.awayTeamId) acc[m.awayTeamId] = (acc[m.awayTeamId] || 0) + m.awayScore;
+        return acc;
+      }, {} as Record<string, number>);
+      const [teamA, teamB] = Object.keys(aggregate);
+      const scoreA = aggregate[teamA] || 0;
+      const scoreB = aggregate[teamB] || 0;
+      if (scoreA > scoreB) winners.push(teamA);
+      else if (scoreB > scoreA) winners.push(teamB);
+      else winners.push(teamA);
+    });
+
+    const shuffledWinners = [...winners].sort(() => Math.random() - 0.5);
+    const nextRoundMatches: Match[] = [];
+    let matchIdCounter = cupMatches.length + 1;
+    const baseRound = Math.max(...cupMatches.map(m => m.round));
+
+    for (let i = 0; i < shuffledWinners.length; i += 2) {
+      const homeTeamId = shuffledWinners[i];
+      const awayTeamId = shuffledWinners[i + 1];
+      if (!homeTeamId || !awayTeamId) continue;
+      const tieId = `CUP-TIE-${matchIdCounter}`;
+      if (nextRoundName === 'Final') {
+        nextRoundMatches.push({
+          id: `CUP-${matchIdCounter++}`,
+          homeTeamId,
+          awayTeamId,
+          homeScore: 0,
+          awayScore: 0,
+          isPlayed: false,
+          round: baseRound + 1,
+          events: [],
+          competition: 'CUP',
+          cupRoundName: nextRoundName
+        });
+      } else {
+        nextRoundMatches.push({
+          id: `CUP-${matchIdCounter++}-1`,
+          homeTeamId,
+          awayTeamId,
+          homeScore: 0,
+          awayScore: 0,
+          isPlayed: false,
+          round: baseRound + 1,
+          events: [],
+          competition: 'CUP',
+          leg: 1,
+          tieId,
+          cupRoundName: nextRoundName
+        });
+        nextRoundMatches.push({
+          id: `CUP-${matchIdCounter++}-2`,
+          homeTeamId: awayTeamId,
+          awayTeamId: homeTeamId,
+          homeScore: 0,
+          awayScore: 0,
+          isPlayed: false,
+          round: baseRound + 2,
+          events: [],
+          competition: 'CUP',
+          leg: 2,
+          tieId,
+          cupRoundName: nextRoundName
+        });
+      }
+    }
+
+    if (nextRoundMatches.length > 0) {
+      const updated = [...cupMatches, ...nextRoundMatches];
+      setCupMatches(updated);
+      saveLeagueState({ cupMatches: updated });
+      addNews(`COPA: Se generan los cruces de ${nextRoundName}.`, 'ADMIN');
+    }
+  }, [league?.isStarted, cupMatches]);
 
   const applyMarketClosureLogic = () => {
     let currentMatches = [...matches];
@@ -159,15 +266,36 @@ const App: React.FC = () => {
       return gdB - gdA;
     });
 
-    const quarterFinals: Match[] = [
-      { id: 'QF1', homeTeamId: sorted[2].id, awayTeamId: sorted[5].id, homeScore: 0, awayScore: 0, isPlayed: false, round: 99, events: [] },
-      { id: 'QF2', homeTeamId: sorted[3].id, awayTeamId: sorted[4].id, homeScore: 0, awayScore: 0, isPlayed: false, round: 99, events: [] }
-    ];
+    const directPositions = league.finalFourConfig?.direct || [];
+    const playoffPositions = league.finalFourConfig?.playoffs || [];
+    const directTeams = directPositions.map(pos => sorted[pos - 1]).filter(Boolean);
+    const playoffTeams = playoffPositions.map(pos => sorted[pos - 1]).filter(Boolean);
+    const remainingSlots = 4 - directTeams.length;
+
+    const orderedPlayoffs = [...playoffTeams];
+    const playoffPairs: Match[] = [];
+    if (remainingSlots > 0) {
+      const neededTeams = remainingSlots * 2;
+      const selected = orderedPlayoffs.slice(0, neededTeams);
+      const sortedByRank = selected.sort((a, b) => {
+        const posA = sorted.findIndex(t => t.id === a.id);
+        const posB = sorted.findIndex(t => t.id === b.id);
+        return posA - posB;
+      });
+      for (let i = 0; i < sortedByRank.length / 2; i++) {
+        const home = sortedByRank[i];
+        const away = sortedByRank[sortedByRank.length - 1 - i];
+        playoffPairs.push(
+          { id: `QF-${i + 1}-1`, homeTeamId: home.id, awayTeamId: away.id, homeScore: 0, awayScore: 0, isPlayed: false, round: 99, events: [], competition: 'PLAYOFF', leg: 1, tieId: `PO-TIE-${i + 1}` },
+          { id: `QF-${i + 1}-2`, homeTeamId: away.id, awayTeamId: home.id, homeScore: 0, awayScore: 0, isPlayed: false, round: 100, events: [], competition: 'PLAYOFF', leg: 2, tieId: `PO-TIE-${i + 1}` }
+        );
+      }
+    }
 
     const newLeague: League = {
       ...league,
       playoffs: {
-        quarterFinals,
+        quarterFinals: playoffPairs,
         semiFinals: [],
         final: []
       }
@@ -176,7 +304,8 @@ const App: React.FC = () => {
     setLeague(newLeague);
     setActiveTab('playoffs');
     saveLeagueState({ league: newLeague });
-    addNews(`PLAYOFFS INICIADOS: El camino a la gloria comienza. ${sorted[0].name} y ${sorted[1].name} esperan en Semis.`, "ADMIN");
+    const directNames = directTeams.map(t => t.name).join(' y ');
+    addNews(`PLAYOFFS INICIADOS: El camino a la gloria comienza. Clasificados directos: ${directNames || 'Ninguno'}.`, "ADMIN");
   };
 
   const addNotification = (teamId: string, title: string, message: string, type: AppNotification['type']) => {
@@ -211,7 +340,7 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('mansos_session');
-    setCurrentUser(null); setLeague(null); setTeams([]); setPlayers([]); setMatches([]); setNews([]); setOffers([]); setNotifications([]); setNeedsTeamSetup(false);
+    setCurrentUser(null); setLeague(null); setTeams([]); setPlayers([]); setMatches([]); setCupMatches([]); setNews([]); setOffers([]); setNotifications([]); setNeedsTeamSetup(false);
   };
 
   const addNews = async (context: string, category: LeagueNews['category']) => {
@@ -246,7 +375,8 @@ const App: React.FC = () => {
       isStarted: false, 
       marketOpen: false, 
       currentRound: 1,
-      legs: newLeagueLegs
+      legs: newLeagueLegs,
+      finalFourConfig: { direct: [], playoffs: [], locked: false }
     };
     const adminTeam: Team = { id: 'T' + Math.random().toString(36).substring(2, 9), name: `FC ${currentUser.managerName}`, managerName: currentUser.managerName, budget: RULES.INITIAL_BUDGET, players: [], points: 0, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, debtFactor: 1, maxClauseCap: 1000 };
     setLeague(newLeague); setTeams([adminTeam]); setNeedsTeamSetup(true);
@@ -271,9 +401,9 @@ const App: React.FC = () => {
     if (targetLeague) {
       const newTeam: Team = { id: 'T' + Math.random().toString(36).substring(2, 9), name: `FC ${currentUser.managerName}`, managerName: currentUser.managerName, budget: RULES.INITIAL_BUDGET, players: [], points: 0, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, debtFactor: 1, maxClauseCap: 1000 };
       const updatedTeams = [...(data.teams || []), newTeam];
-      setLeague(targetLeague); setTeams(updatedTeams); setPlayers(data.players || []); setMatches(data.matches || []); setNeedsTeamSetup(true);
+      setLeague(targetLeague); setTeams(updatedTeams); setPlayers(data.players || []); setMatches(data.matches || []); setCupMatches(data.cupMatches || []); setNeedsTeamSetup(true);
       setCurrentUser({...currentUser, leagueId: targetLeague.id, role: Role.MANAGER, teamId: newTeam.id});
-      saveLeagueState({ league: targetLeague, teams: updatedTeams, players: data.players, matches: data.matches, news: data.news, offers: data.offers, notifications: data.notifications });
+      saveLeagueState({ league: targetLeague, teams: updatedTeams, players: data.players, matches: data.matches, cupMatches: data.cupMatches, news: data.news, offers: data.offers, notifications: data.notifications });
     } else alert("Liga no encontrada.");
   };
 
@@ -351,9 +481,10 @@ const App: React.FC = () => {
         {activeTab === 'squad' && <SquadManagement team={currentTeam} allPlayers={players} setPlayers={(p) => { setPlayers(p); saveLeagueState({ players: p }); }} teams={teams} setTeams={(t) => { setTeams(t); saveLeagueState({ teams: t }); }} league={league} />}
         {activeTab === 'market' && <Market players={players} team={currentTeam} setPlayers={(p) => { setPlayers(p); saveLeagueState({ players: p }); }} setTeams={(t) => { setTeams(t); saveLeagueState({ teams: t }); }} teams={teams} onNews={addNews} offers={offers} setOffers={(o) => { setOffers(o); saveLeagueState({ offers: o }); }} league={league} onNotify={addNotification} />}
         {activeTab === 'matches' && <MatchCenter matches={matches} teams={teams} setMatches={(m) => { setMatches(m); saveLeagueState({ matches: m }); }} setTeams={(t) => { setTeams(t); saveLeagueState({ teams: t }); }} players={players} setPlayers={(p) => { setPlayers(p); saveLeagueState({ players: p }); }} isAdmin={currentUser.role === Role.ADMIN} userTeamId={currentUser.teamId} onNews={addNews} />}
+        {activeTab === 'cup' && <MatchCenter matches={cupMatches} teams={teams} setMatches={(m) => { setCupMatches(m); saveLeagueState({ cupMatches: m }); }} setTeams={(t) => { setTeams(t); saveLeagueState({ teams: t }); }} players={players} setPlayers={(p) => { setPlayers(p); saveLeagueState({ players: p }); }} isAdmin={currentUser.role === Role.ADMIN} userTeamId={currentUser.teamId} onNews={addNews} />}
         {activeTab === 'stats' && <Stats players={players} teams={teams} />}
         {activeTab === 'playoffs' && <PlayoffView league={league} teams={teams} isAdmin={currentUser.role === Role.ADMIN} onNews={addNews} setLeague={(l) => { setLeague(l); saveLeagueState({ league: l }); }} setTeams={(t) => { setTeams(t); saveLeagueState({ teams: t }); }} />}
-        {activeTab === 'admin' && currentUser.role === Role.ADMIN && <AdminPanel league={league} setLeague={(l) => { setLeague(l); saveLeagueState({ league: l }); }} teams={teams} players={players} setPlayers={(p) => { setPlayers(p); saveLeagueState({ players: p }); }} matches={matches} setMatches={(m) => { setMatches(m); saveLeagueState({ matches: m }); }} onNews={addNews} onExpel={(id) => {}} onStartPlayoffs={handleStartPlayoffs} />}
+        {activeTab === 'admin' && currentUser.role === Role.ADMIN && <AdminPanel league={league} setLeague={(l) => { setLeague(l); saveLeagueState({ league: l }); }} teams={teams} players={players} setPlayers={(p) => { setPlayers(p); saveLeagueState({ players: p }); }} matches={matches} setMatches={(m) => { setMatches(m); saveLeagueState({ matches: m }); }} setCupMatches={(m) => { setCupMatches(m); saveLeagueState({ cupMatches: m }); }} onNews={addNews} onExpel={(id) => {}} onStartPlayoffs={handleStartPlayoffs} />}
       </main>
     </div>
   );

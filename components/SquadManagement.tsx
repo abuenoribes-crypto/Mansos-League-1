@@ -83,6 +83,14 @@ const SquadManagement: React.FC<SquadProps> = ({ team, allPlayers, setPlayers, t
     return { label: 'ACTIVO', color: 'text-emerald-400 bg-emerald-400/10' };
   };
 
+  const toggleTransferList = (playerId: string) => {
+    const updatedPlayers = allPlayers.map(p => {
+      if (p.id !== playerId) return p;
+      return { ...p, transferListed: !p.transferListed };
+    });
+    setPlayers(updatedPlayers);
+  };
+
   return (
     <div className="space-y-8">
       {isAdjustmentMode && (
@@ -147,6 +155,7 @@ const SquadManagement: React.FC<SquadProps> = ({ team, allPlayers, setPlayers, t
                 <th className="px-6 py-4">Cláusula</th>
                 {isAdjustmentMode && <th className="px-6 py-4">Ajustar</th>}
                 <th className="px-6 py-4">Estado</th>
+                <th className="px-6 py-4 text-right">Transferible</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
@@ -164,6 +173,7 @@ const SquadManagement: React.FC<SquadProps> = ({ team, allPlayers, setPlayers, t
                   <td className="px-6 py-4">
                     <span className={`text-[10px] font-bold px-2 py-1 rounded ${getPlayerStatus(captain).color}`}>{getPlayerStatus(captain).label}</span>
                   </td>
+                  <td className="px-6 py-4 text-right text-xs text-slate-600 font-bold">---</td>
                 </tr>
               )}
               {regularPlayers.map(p => (
@@ -184,6 +194,16 @@ const SquadManagement: React.FC<SquadProps> = ({ team, allPlayers, setPlayers, t
                   )}
                   <td className="px-6 py-4">
                     <span className={`text-[10px] font-bold px-2 py-1 rounded ${getPlayerStatus(p).color}`}>{getPlayerStatus(p).label}</span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      onClick={() => toggleTransferList(p.id)}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all ${
+                        p.transferListed ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'bg-slate-900 border-slate-700 text-slate-500 hover:text-white'
+                      }`}
+                    >
+                      {p.transferListed ? 'En lista' : 'Disponible'}
+                    </button>
                   </td>
                 </tr>
               ))}

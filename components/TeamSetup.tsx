@@ -64,15 +64,21 @@ const TeamSetup: React.FC<TeamSetupProps> = ({ managerName, onComplete, onCancel
     }
 
     const finalPlayers: Player[] = [
-      { ...captain, id: `P-${Date.now()}-CAP`, goals: 0, assists: 0, yellowCards: 0, cards: 0, injuries: 0 } as Player,
+      { ...captain, id: `P-${Date.now()}-CAP`, goals: 0, assists: 0, yellowCards: 0, redCards: 0, cupGoals: 0, cupAssists: 0, cupYellowCards: 0, cupRedCards: 0, cards: 0, injuries: 0, transferListed: false } as Player,
       ...regularPlayers.map((p, i) => ({
         ...p,
         id: `P-${Date.now()}-${i}`,
         goals: 0,
         assists: 0,
         yellowCards: 0,
+        redCards: 0,
+        cupGoals: 0,
+        cupAssists: 0,
+        cupYellowCards: 0,
+        cupRedCards: 0,
         cards: 0,
-        injuries: 0
+        injuries: 0,
+        transferListed: false
       } as Player))
     ];
 
