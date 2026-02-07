@@ -11,16 +11,20 @@ interface StatsProps {
 const Stats: React.FC<StatsProps> = ({ players, teams }) => {
   const [activeTab, setActiveTab] = useState<'leaderboard' | 'by-team'>('leaderboard');
   const [activeStat, setActiveStat] = useState<'goals' | 'assists' | 'yellows' | 'reds'>('goals');
+  const [scope, setScope] = useState<'league' | 'cup' | 'global'>('league');
   const [selectedTeamId, setSelectedTeamId] = useState<string>(teams[0]?.id || '');
 
   const getTeamName = (teamId?: string) => teams.find(t => t.id === teamId)?.name || 'Sin equipo';
 
-  const sortedPlayers = [...players].sort((a, b) => {
-    if (activeStat === 'goals') return b.goals - a.goals;
-    if (activeStat === 'assists') return b.assists - a.assists;
-    if (activeStat === 'yellows') return b.yellowCards - a.yellowCards;
-    return b.redCards - a.redCards;
-  }).slice(0, 10);
+  const getStatValue = (player: Player, stat: typeof activeStat) => {
+    const leagueValue = stat === 'goals' ? player.goals : stat === 'assists' ? player.assists : stat === 'yellows' ? player.yellowCards : player.redCards;
+    const cupValue = stat === 'goals' ? (player.cupGoals || 0) : stat === 'assists' ? (player.cupAssists || 0) : stat === 'yellows' ? (player.cupYellowCards || 0) : (player.cupRedCards || 0);
+    if (scope === 'league') return leagueValue;
+    if (scope === 'cup') return cupValue;
+    return leagueValue + cupValue;
+  };
+
+  const sortedPlayers = [...players].sort((a, b) => getStatValue(b, activeStat) - getStatValue(a, activeStat)).slice(0, 10);
 
   const statConfig = {
     goals: { label: 'Máximos Goleadores', icon: Goal, color: 'text-emerald-400', field: 'goals' },
@@ -30,7 +34,7 @@ const Stats: React.FC<StatsProps> = ({ players, teams }) => {
   };
 
   const selectedTeam = teams.find(t => t.id === selectedTeamId);
-  const teamPlayers = players.filter(p => p.teamId === selectedTeamId).sort((a, b) => b.goals - a.goals || b.assists - a.assists);
+  const teamPlayers = players.filter(p => p.teamId === selectedTeamId).sort((a, b) => getStatValue(b, 'goals') - getStatValue(a, 'goals') || getStatValue(b, 'assists') - getStatValue(a, 'assists'));
 
   return (
     <div className="space-y-8 pb-12">
@@ -38,6 +42,20 @@ const Stats: React.FC<StatsProps> = ({ players, teams }) => {
       <div className="flex p-1.5 bg-slate-900 border border-slate-800 rounded-2xl w-fit">
         <button onClick={() => setActiveTab('leaderboard')} className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'leaderboard' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-500 hover:text-white'}`}>Líderes Liga</button>
         <button onClick={() => setActiveTab('by-team')} className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'by-team' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-500 hover:text-white'}`}>Por Equipos</button>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {(['league', 'cup', 'global'] as const).map((item) => (
+          <button
+            key={item}
+            onClick={() => setScope(item)}
+            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+              scope === item ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-white'
+            }`}
+          >
+            {item === 'league' ? 'Liga' : item === 'cup' ? 'Copa' : 'Global'}
+          </button>
+        ))}
       </div>
 
       {activeTab === 'leaderboard' ? (
@@ -71,7 +89,7 @@ const Stats: React.FC<StatsProps> = ({ players, teams }) => {
                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${activeStat === 'goals' ? 'bg-emerald-500/10' : activeStat === 'assists' ? 'bg-sky-500/10' : activeStat === 'yellows' ? 'bg-amber-500/10' : 'bg-rose-500/10'}`}>
                     {React.createElement(statConfig[activeStat].icon, { className: statConfig[activeStat].color, size: 24 })}
                 </div>
-                <div><h2 className="text-2xl font-black uppercase tracking-tighter">{statConfig[activeStat].label}</h2><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Top 10 de la Mansos</p></div>
+                <div><h2 className="text-2xl font-black uppercase tracking-tighter">{statConfig[activeStat].label}</h2><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Top 10 ({scope === 'league' ? 'Liga' : scope === 'cup' ? 'Copa' : 'Global'})</p></div>
               </div>
               <Trophy className="text-slate-800" size={32} />
             </div>
@@ -86,7 +104,7 @@ const Stats: React.FC<StatsProps> = ({ players, teams }) => {
                       <td className="px-8 py-6"><div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm ${idx === 0 ? 'bg-amber-500 text-slate-950 shadow-lg' : idx === 1 ? 'bg-slate-300 text-slate-950' : idx === 2 ? 'bg-amber-700 text-white' : 'bg-slate-800/50 text-slate-500'}`}>{idx + 1}</div></td>
                       <td className="px-8 py-6"><div><p className="font-black text-white group-hover:text-indigo-400 transition-colors uppercase tracking-tight">{player.name}</p><span className="text-[10px] font-bold text-slate-500 bg-slate-800 px-2 py-0.5 rounded uppercase">{player.position}</span></div></td>
                       <td className="px-8 py-6"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center border border-slate-700 overflow-hidden">{teams.find(t => t.id === player.teamId)?.logo ? <img src={teams.find(t => t.id === player.teamId)?.logo} className="w-full h-full object-cover" /> : <span className="text-[10px] font-bold">{getTeamName(player.teamId)[0]}</span>}</div><p className="text-slate-400 font-bold text-sm tracking-tight">{getTeamName(player.teamId)}</p></div></td>
-                      <td className="px-8 py-6 text-right"><span className={`text-3xl font-black ${statConfig[activeStat].color}`}>{(player as any)[statConfig[activeStat].field]}</span></td>
+                      <td className="px-8 py-6 text-right"><span className={`text-3xl font-black ${statConfig[activeStat].color}`}>{getStatValue(player, activeStat)}</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -149,12 +167,12 @@ const Stats: React.FC<StatsProps> = ({ players, teams }) => {
                         <tr key={p.id} className="hover:bg-slate-800/30 transition-all group">
                           <td className="px-8 py-6"><div className="flex items-center gap-2">{p.isCaptain && <Shield size={12} className="text-indigo-400" />}<span className="font-bold text-white uppercase">{p.name}</span></div></td>
                           <td className="px-8 py-6 text-center"><span className="text-[10px] font-bold text-slate-500 bg-slate-800 px-2 py-1 rounded">{p.position}</span></td>
-                          <td className="px-8 py-6 text-right font-black text-emerald-400 text-xl">{p.goals}</td>
-                          <td className="px-8 py-6 text-right font-black text-sky-400 text-xl">{p.assists}</td>
+                          <td className="px-8 py-6 text-right font-black text-emerald-400 text-xl">{getStatValue(p, 'goals')}</td>
+                          <td className="px-8 py-6 text-right font-black text-sky-400 text-xl">{getStatValue(p, 'assists')}</td>
                           <td className="px-8 py-6 text-right">
                              <div className="flex items-center justify-end gap-3 font-bold text-[10px]">
-                                <span className="text-amber-400">Y: {p.yellowCards}</span>
-                                <span className="text-rose-500">R: {p.redCards}</span>
+                                <span className="text-amber-400">Y: {getStatValue(p, 'yellows')}</span>
+                                <span className="text-rose-500">R: {getStatValue(p, 'reds')}</span>
                              </div>
                           </td>
                         </tr>

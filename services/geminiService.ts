@@ -9,19 +9,19 @@ export const generateLeagueNews = async (
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Eres el editor jefe de 'Mansos League Press', el medio oficial de una liga de ingeniería competitiva de FIFA.
-      Analiza y redacta una noticia impactante basada en estos hechos: ${context}.
+      contents: `Eres el editor jefe de 'Mansos League Press', el medio oficial de una liga de FIFA.
+      Analiza y redacta una noticia con tono humano y futbolero basada en estos hechos: ${context}.
       
       REGLAS DE NARRATIVA:
-      1. Título: Debe ser un titular de clickbait profesional (ej. '¡TERREMOTO EN EL MERCADO!', 'EL LÍDER NO TIENE PIEDAD').
-      2. Cuerpo: Analiza no solo el resultado, sino las rachas, la proximidad a la Final Four o el peligro de sanción (puestos 7º-8º).
-      3. Estilo: Usa un lenguaje periodístico español moderno (Marca, El Chiringuito). Sé pasional y algo dramático.
-      4. Si hay una deuda o crisis financiera, trátalo como un escándalo económico.
-      5. Si hay un clausulazo, descríbelo como un movimiento estratégico magistral o una traición.
+      1. Título: Debe ser directo, con jerga futbolera y fácil de entender (ej. '¡GOLPE EN EL MERCADO!', 'EL LÍDER NO SUELTA EL TRONO').
+      2. Cuerpo: Cuenta la historia como un periodista deportivo real. Menciona rachas, la pelea por la Final Four y el drama de los puestos 7º-8º.
+      3. Estilo: Español natural, frases cortas y ritmo de radio deportiva. Menos técnico, más calle y fútbol.
+      4. Si hay deuda o crisis financiera, trátalo como un problema serio del club.
+      5. Si hay un clausulazo, descríbelo como un bombazo o una traición del mercado.
       
       FORMATO: Devuelve el Titular en la primera línea y el cuerpo de la noticia debajo.`,
       config: {
-        systemInstruction: "Generas crónicas deportivas inmersivas para Mansos League. Hablas de fútbol, finanzas y estrategia competitiva.",
+        systemInstruction: "Generas crónicas deportivas humanas y futboleras para Mansos League. Hablas de fútbol con emoción y claridad.",
         temperature: 0.85,
       },
     });

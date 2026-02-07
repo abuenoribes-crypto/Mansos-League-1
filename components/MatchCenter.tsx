@@ -41,7 +41,7 @@ const MatchCenter: React.FC<MatchCenterProps> = ({ matches, teams, setMatches, s
   }
 
   const startRegistration = (match: Match) => {
-    if (match.isSanctionResult) return;
+    if (match.isSanctionResult || match.isBye || match.awayTeamId === 'BYE') return;
     setRegisteringMatch(match);
     setReportStep(1);
     setHomeScore(0);
@@ -143,6 +143,7 @@ const MatchCenter: React.FC<MatchCenterProps> = ({ matches, teams, setMatches, s
     let finalAwayScore = report.awayScore;
     let homeLossByDefault = false;
     let awayLossByDefault = false;
+    const competition = match.competition || 'LEAGUE';
 
     // Verificar sanciones en convocatorias
     const homeSquad = [...report.homeStarters, ...report.homeSubs];
@@ -176,25 +177,30 @@ const MatchCenter: React.FC<MatchCenterProps> = ({ matches, teams, setMatches, s
       const pRed = pEvents.filter(e => e.type === 'RED_CARD').length > 0;
       const pInjured = pEvents.filter(e => e.type === 'INJURY').length > 0;
 
-      const oldYellows = p.yellowCards;
-      const newYellows = oldYellows + pYellows;
+      const oldTotalYellows = p.yellowCards + (p.cupYellowCards || 0);
+      const newTotalYellows = oldTotalYellows + pYellows;
+      const newLeagueYellows = p.yellowCards + pYellows;
+      const newCupYellows = (p.cupYellowCards || 0) + pYellows;
 
       // Reducción de sanción (siempre 1 por acta jugada)
       let newCards = p.cards > 0 ? p.cards - 1 : 0;
       let newInjuries = p.injuries > 0 ? p.injuries - 1 : 0;
 
       // Aplicar nueva sanción por ciclo de 3 amarillas
-      if (Math.floor(newYellows / 3) > Math.floor(oldYellows / 3)) {
+      if (Math.floor(newTotalYellows / 3) > Math.floor(oldTotalYellows / 3)) {
         newCards += 1;
       }
       if (pRed) newCards += 1;
       if (pInjured) newInjuries += 2;
 
-      return { ...p, goals: p.goals + pGoals, assists: p.assists + pAssists, yellowCards: newYellows, redCards: p.redCards + (pRed ? 1 : 0), cards: newCards, injuries: newInjuries };
+      if (competition === 'CUP') {
+        return { ...p, cupGoals: (p.cupGoals || 0) + pGoals, cupAssists: (p.cupAssists || 0) + pAssists, cupYellowCards: newCupYellows, cupRedCards: (p.cupRedCards || 0) + (pRed ? 1 : 0), cards: newCards, injuries: newInjuries };
+      }
+      return { ...p, goals: p.goals + pGoals, assists: p.assists + pAssists, yellowCards: newLeagueYellows, redCards: p.redCards + (pRed ? 1 : 0), cards: newCards, injuries: newInjuries };
     });
 
     // Actualizar Clasificación
-    const updatedTeams = teams.map(t => {
+    const updatedTeams = competition === 'LEAGUE' ? teams.map(t => {
       if (t.id === match.homeTeamId) {
         const win = finalHomeScore > finalAwayScore;
         const draw = finalHomeScore === finalAwayScore;
@@ -206,12 +212,13 @@ const MatchCenter: React.FC<MatchCenterProps> = ({ matches, teams, setMatches, s
         return { ...t, played: t.played + 1, won: t.won + (win ? 1 : 0), drawn: t.drawn + (draw ? 1 : 0), lost: t.lost + (finalAwayScore < finalHomeScore ? 1 : 0), points: t.points + (win ? 3 : draw ? 1 : 0), gf: t.gf + finalAwayScore, ga: t.ga + finalHomeScore };
       }
       return t;
-    });
+    }) : teams;
 
     setMatches(updatedMatches);
     setPlayers(updatedPlayers);
     setTeams(updatedTeams);
-    onNews(`RESULTADO OFICIAL: ${finalHomeScore}-${finalAwayScore} en la Jornada ${match.round}.`, 'MATCH');
+    const label = competition === 'CUP' ? 'COPA' : competition === 'PLAYOFF' ? 'PLAYOFFS' : 'LIGA';
+    onNews(`RESULTADO OFICIAL (${label}): ${finalHomeScore}-${finalAwayScore} en la Jornada ${match.round}.`, 'MATCH');
   };
 
   const getStatus = (pid: string, tid: string) => {
@@ -239,15 +246,19 @@ const MatchCenter: React.FC<MatchCenterProps> = ({ matches, teams, setMatches, s
         {matches.filter(m => {
           const start = activeRound % 2 === 0 ? activeRound - 1 : activeRound;
           return m.round === start || m.round === start + 1;
-        }).map(match => (
+        }).map(match => {
+          const homeTeam = teams.find(t => t.id === match.homeTeamId);
+          const awayTeam = match.awayTeamId === 'BYE' ? null : teams.find(t => t.id === match.awayTeamId);
+          const awayLabel = match.awayTeamId === 'BYE' ? 'DESCANSO' : awayTeam?.name;
+          return (
           <div key={match.id} className={`bg-slate-900 border ${match.isSanctionResult ? 'border-rose-500/50' : 'border-slate-800'} rounded-[2.5rem] p-10 relative overflow-hidden group hover:border-indigo-500/30 transition-all`}>
              <div className="absolute top-4 left-4 text-[9px] font-black uppercase text-slate-600">Jornada {match.round}</div>
              <div className="flex items-center justify-between gap-6">
                 <div className="text-center space-y-3 flex-1">
                    <div className="w-16 h-16 bg-slate-800 rounded-2xl mx-auto flex items-center justify-center border border-slate-700 overflow-hidden">
-                      {teams.find(t => t.id === match.homeTeamId)?.logo ? <img src={teams.find(t => t.id === match.homeTeamId)?.logo} className="w-full h-full object-cover" /> : <Users className="text-slate-600" />}
+                      {homeTeam?.logo ? <img src={homeTeam.logo} className="w-full h-full object-cover" /> : <Users className="text-slate-600" />}
                    </div>
-                   <h4 className="font-black text-xs truncate uppercase">{teams.find(t => t.id === match.homeTeamId)?.name}</h4>
+                   <h4 className="font-black text-xs truncate uppercase">{homeTeam?.name}</h4>
                 </div>
                 <div className="flex flex-col items-center gap-4">
                    <span className="text-4xl font-black tracking-tighter">{match.isPlayed ? `${match.homeScore}:${match.awayScore}` : 'VS'}</span>
@@ -260,13 +271,14 @@ const MatchCenter: React.FC<MatchCenterProps> = ({ matches, teams, setMatches, s
                 </div>
                 <div className="text-center space-y-3 flex-1">
                    <div className="w-16 h-16 bg-slate-800 rounded-2xl mx-auto flex items-center justify-center border border-slate-700 overflow-hidden">
-                      {teams.find(t => t.id === match.awayTeamId)?.logo ? <img src={teams.find(t => t.id === match.awayTeamId)?.logo} className="w-full h-full object-cover" /> : <Users className="text-slate-600" />}
+                      {awayTeam?.logo ? <img src={awayTeam.logo} className="w-full h-full object-cover" /> : <Users className="text-slate-600" />}
                    </div>
-                   <h4 className="font-black text-xs truncate uppercase">{teams.find(t => t.id === match.awayTeamId)?.name}</h4>
+                   <h4 className="font-black text-xs truncate uppercase">{awayLabel}</h4>
                 </div>
              </div>
           </div>
-        ))}
+        );
+        })}
       </div>
 
       {registeringMatch && (
